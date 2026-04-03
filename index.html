@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImaginazCalc3D — Marcio PRO</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7fe; font-family: 'Inter', sans-serif; color: #1e293b; }
+        .card { background: white; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.02); border: 1px solid #edf2f7; }
+        .input-group { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 10px 14px; }
+        .label-header { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 6px; display: block; }
+        .btn-toggle { background: #f1f5f9; color: #64748b; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; border: 1px solid transparent; transition: 0.2s; }
+        .btn-toggle.active { background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; border: 1px solid; }
+        input[type="range"] { accent-color: #4f46e5; width: 100%; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        const App = () => {
+            const [view, setView] = useState('calc');
+            const [historico, setHistorico] = useState(() => JSON.parse(localStorage.getItem('imaginaz_hist_v12') || '[]'));
+
+            const MINHAS_MAQUINAS = {
+                'Bambulab A1': { v: 4300, w: 150, h: 5000 },
+                'Bambulab H2D': { v: 34000, w: 450, h: 8000 },
+                'Kobra 3 v2': { v: 3400, w: 400, h: 5000 },
+                'Kobra S1': { v: 6000, w: 500, h: 5000 },
+                'Kobra 3 Max': { v: 7500, w: 500, h: 5000 },
+                'Qidi Q2': { v: 4500, w: 350, h: 5000 },
+                'GTMax A1v2': { v: 11000, w: 300, h: 10000 }
+            };
+
+            const [settings, setSettings] = useState(() => {
+                const salvo = localStorage.getItem('imaginaz_set_v12');
+                return salvo ? JSON.parse(salvo) : { 
+                    nomeMaq: 'Bambulab A1', consumo: 150, kwh: 1.25, precoMaq: 4300, vida: 5000,
+                    precoPLA: 110, precoABS: 95, precoPETG: 120 
+                };
+            });
+
+            const [projeto, setProjeto] = useState({ 
+                nome: 'Novo Orçamento', qtd: 1, peso: 100, tempo: 5, 
+                material: 'PLA', outros: 0, embalagem: 0, risco: 5, markup: 100 
+            });
+
+            useEffect(() => { localStorage.setItem('imaginaz_set_v12', JSON.stringify(settings)); }, [settings]);
+            useEffect(() => { localStorage.setItem('imaginaz_hist_v12', JSON.stringify(historico)); }, [historico]);
+
+            const calc = useMemo(() => {
+                const precoKgAtual = settings[`preco${projeto.material}`] || 110;
+                const f = (projeto.peso / 1000) * precoKgAtual;
+                const e = (settings.consumo / 1000) * projeto.tempo * settings.kwh;
+                const d = (settings.precoMaq / settings.vida) * projeto.tempo;
+                const ex = Number(projeto.outros) + Number(projeto.embalagem);
+                const custoBase = f + e + d + ex;
+                const riscoVal = custoBase * (projeto.risco / 100);
+                const custoTotal = custoBase + riscoVal;
+                const total = custoTotal * (1 + projeto.markup / 100);
+                
+                return { total, un: total / projeto.qtd, f, e, d, ex, riscoVal, custoTotal, precoUsado: precoKgAtual };
+            }, [projeto, settings]);
+
+            const salvarNoHistorico = () => {
+                const novoItem = { ...projeto, ...calc, data: new Date().toLocaleString(), id: Date.now() };
+                setHistorico([novoItem, ...historico]);
+                alert("Projeto salvo no ImaginazCalc!");
+            };
+
+            const excluirHistorico = (id) => setHistorico(historico.filter(h => h.id !== id));
+
+            return (
+                <div className="max-w-7xl mx-auto p-4 md:p-8">
+                    <header className="flex justify-between items-center mb-10">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg">IZ</div>
+                            <div>
+                                <h1 className="text-2xl font-black text-slate-800 tracking-tight">ImaginazCalc3D</h1>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Painel do Márcio</p>
+                            </div>
+                        </div>
+                        <div className="flex bg-slate-100 p-1.5 rounded-2xl gap-1">
+                            <button onClick={() => setView('calc')} className={`px-6 py-2 rounded-xl text-sm font-bold ${view === 'calc' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>📊 Calculadora</button>
+                            <button onClick={() => setView('hist')} className={`px-6 py-2 rounded-xl text-sm font-bold ${view === 'hist' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>🕒 Histórico</button>
+                            <button onClick={() => setView('settings')} className={`px-6 py-2 rounded-xl text-sm font-bold ${view === 'settings' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>⚙️ Ajustes</button>
+                        </div>
+                    </header>
+
+                    {view === 'calc' ? (
+                        <div className="grid lg:grid-cols-12 gap-10 animate-in fade-in">
+                            <div className="lg:col-span-4 space-y-6">
+                                <section className="card p-7 space-y-5">
+                                    <h3 className="label-header">Configurar Projeto</h3>
+                                    <div><label className="label-header">Título do Projeto</label><div className="input-group"><input className="w-full bg-transparent font-bold outline-none" value={projeto.nome} onChange={e => setProjeto({...projeto, nome: e.target.value})} /></div></div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="label-header">Qtd</label><div className="input-group"><input type="number" className="w-full bg-transparent font-bold outline-none text-indigo-600" value={projeto.qtd} onChange={e => setProjeto({...projeto, qtd: e.target.value})} /></div></div>
+                                        <div><label className="label-header">Peso (g)</label><div className="input-group"><input type="number" className="w-full bg-transparent font-bold outline-none" value={projeto.peso} onChange={e => setProjeto({...projeto, peso: e.target.value})} /></div></div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="label-header">Tempo (h)</label><div className="input-group border-indigo-100"><input type="number" className="w-full bg-transparent font-bold outline-none" value={projeto.tempo} onChange={e => setProjeto({...projeto, tempo: e.target.value})} /></div></div>
+                                        <div>
+                                            <label className="label-header">Material</label>
+                                            <div className="flex gap-1">
+                                                {['PLA','PETG','ABS'].map(m => (
+                                                    <button key={m} onClick={()=>setProjeto({...projeto, material: m})} className={`btn-toggle ${projeto.material === m ? 'active' : ''}`}>{m}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50">
+                                        <div><label className="text-[10px] font-bold text-slate-400">OUTROS (R$)</label><div className="input-group"><input type="number" className="w-full bg-transparent font-bold outline-none" value={projeto.outros} onChange={e => setProjeto({...projeto, outros: e.target.value})} /></div></div>
+                                        <div><label className="text-[10px] font-bold text-slate-400">EMBALAGEM (R$)</label><div className="input-group"><input type="number" className="w-full bg-transparent font-bold outline-none" value={projeto.embalagem} onChange={e => setProjeto({...projeto, embalagem: e.target.value})} /></div></div>
+                                    </div>
+                                    <div className="pt-4"><label className="label-header flex justify-between">Risco <span>{projeto.risco}%</span></label><input type="range" min="0" max="30" value={projeto.risco} onChange={e => setProjeto({...projeto, risco: e.target.value})} /></div>
+                                    <div className="pt-4"><label className="label-header flex justify-between text-indigo-500">Lucro (Markup) <span>{projeto.markup}%</span></label><input type="range" min="20" max="400" value={projeto.markup} onChange={e => setProjeto({...projeto, markup: e.target.value})} /></div>
+                                </section>
+                            </div>
+
+                            <div className="lg:col-span-8 space-y-6">
+                                <div className="card overflow-hidden">
+                                    <div className="grid md:grid-cols-2 border-b border-slate-50">
+                                        <div className="p-10 text-center border-r border-slate-50"><label className="label-header tracking-widest">Preço de Venda</label><h1 className="text-6xl font-black tracking-tighter">R$ {calc.total.toFixed(2)}</h1></div>
+                                        <div className="p-10 text-center bg-indigo-50/20"><label className="label-header text-indigo-400 tracking-widest">Valor por Peça</label><h1 className="text-6xl font-black text-indigo-600 tracking-tighter">R$ {calc.un.toFixed(2)}</h1></div>
+                                    </div>
+                                    <div className="p-8">
+                                        <table className="w-full text-sm font-bold text-slate-600">
+                                            <tbody>
+                                                <tr className="border-b border-slate-50"><td className="py-3">Filamento ({projeto.material} a R${calc.precoUsado}/kg)</td><td className="text-right">R$ {calc.f.toFixed(2)}</td></tr>
+                                                <tr className="border-b border-slate-50"><td className="py-3">Energia Elétrica</td><td className="text-right">R$ {calc.e.toFixed(2)}</td></tr>
+                                                <tr className="border-b border-slate-50"><td className="py-3">Desgaste ({settings.nomeMaq})</td><td className="text-right">R$ {calc.d.toFixed(2)}</td></tr>
+                                                <tr className="border-b border-slate-50"><td className="py-3">Margem de Erro/Risco</td><td className="text-right text-red-400">R$ {calc.riscoVal.toFixed(2)}</td></tr>
+                                                <tr className="font-black text-slate-900 text-lg"><td className="pt-6 uppercase">Custo de Produção Total</td><td className="pt-6 text-right">R$ {calc.custoTotal.toFixed(2)}</td></tr>
+                                            </tbody>
+                                        </table>
+                                        <div className="grid grid-cols-2 gap-4 mt-8">
+                                            <button onClick={salvarNoHistorico} className="py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">💾 Salvar no Histórico</button>
+                                            <button onClick={() => window.print()} className="py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest">📄 Gerar PDF</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : view === 'settings' ? (
+                        <div className="max-w-4xl mx-auto space-y-6 animate-in slide-in-from-bottom">
+                            <div className="card p-10 space-y-10">
+                                <section>
+                                    <h3 className="label-header mb-4">Escolher Perfil de Impressora</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        {Object.keys(MINHAS_MAQUINAS).map(m => (
+                                            <button key={m} onClick={() => {
+                                                const p = MINHAS_MAQUINAS[m];
+                                                setSettings({...settings, nomeMaq: m, consumo: p.w, precoMaq: p.v, vida: p.h});
+                                            }} className={`btn-toggle ${settings.nomeMaq === m ? 'active' : ''}`}>{m}</button>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="pt-6 border-t border-slate-50">
+                                    <h3 className="label-header text-indigo-500 mb-4 tracking-widest">Tabela de Preços Filamentos (KG)</h3>
+                                    <div className="grid md:grid-cols-3 gap-4">
+                                        <div className="input-group"><label className="label-header">PLA (R$)</label><input type="number" className="w-full bg-transparent font-bold outline-none" value={settings.precoPLA} onChange={e => setSettings({...settings, precoPLA: e.target.value})} /></div>
+                                        <div className="input-group"><label className="label-header">ABS (R$)</label><input type="number" className="w-full bg-transparent font-bold outline-none" value={settings.precoABS} onChange={e => setSettings({...settings, precoABS: e.target.value})} /></div>
+                                        <div className="input-group"><label className="label-header">PETG (R$)</label><input type="number" className="w-full bg-transparent font-bold outline-none" value={settings.precoPETG} onChange={e => setSettings({...settings, precoPETG: e.target.value})} /></div>
+                                    </div>
+                                </section>
+
+                                <section className="pt-6 border-t border-slate-50">
+                                    <h3 className="label-header mb-4">Custos de Operação</h3>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div className="input-group"><label className="label-header">Consumo (Watts)</label><input type="number" className="w-full bg-transparent font-bold outline-none" value={settings.consumo} onChange={e => setSettings({...settings, consumo: e.target.value})} /></div>
+                                        <div className="input-group"><label className="label-header">Custo kWh (R$)</label><input type="number" className="w-full bg-transparent font-bold outline-none" value={settings.kwh} onChange={e => setSettings({...settings, kwh: e.target.value})} /></div>
+                                        <div className="input-group"><label className="label-header">Investimento Máquina (R$)</label><input type="number" className="w-full bg-transparent font-bold outline-none" value={settings.precoMaq} onChange={e => setSettings({...settings, precoMaq: e.target.value})} /></div>
+                                        <div className="input-group"><label className="label-header">Vida Útil (Horas)</label><input type="number" className="w-full bg-transparent font-bold outline-none" value={settings.vida} onChange={e => setSettings({...settings, vida: e.target.value})} /></div>
+                                    </div>
+                                </section>
+
+                                <button onClick={() => setView('calc')} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all">Salvar Configurações Imaginaz</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="max-w-5xl mx-auto space-y-4">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-black text-slate-800">Histórico de Projetos</h2>
+                                <button onClick={() => { if(confirm("Deseja apagar todo o histórico?")) setHistorico([]); }} className="text-xs font-bold text-red-400 uppercase tracking-widest px-4 py-2 hover:bg-red-50 rounded-lg">Limpar Tudo</button>
+                            </div>
+                            {historico.length === 0 ? (
+                                <div className="card p-20 text-center text-slate-300 font-bold border-dashed border-2">Histórico vazio. Comece a orçar!</div>
+                            ) : historico.map(h => (
+                                <div key={h.id} className="card p-6 flex justify-between items-center hover:border-indigo-100 transition-colors group">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{h.data} • {h.material}</p>
+                                        <h4 className="text-lg font-black text-slate-800">{h.nome}</h4>
+                                        <p className="text-sm font-bold text-indigo-600">{h.qtd} unidades • Total: R$ {h.total.toFixed(2)}</p>
+                                    </div>
+                                    <button onClick={() => excluirHistorico(h.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-400 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white">✕</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
