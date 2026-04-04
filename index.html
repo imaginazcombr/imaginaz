@@ -27,7 +27,7 @@
 
         const App = () => {
             const [view, setView] = useState('calc');
-            const [historico, setHistorico] = useState(() => JSON.parse(localStorage.getItem('imaginaz_hist_v13') || '[]'));
+            const [historico, setHistorico] = useState(() => JSON.parse(localStorage.getItem('imaginaz_hist_v13_1') || '[]'));
 
             const MINHAS_MAQUINAS = {
                 'Bambulab A1': { v: 4300, w: 150, h: 5000 },
@@ -40,7 +40,7 @@
             };
 
             const [settings, setSettings] = useState(() => {
-                const salvo = localStorage.getItem('imaginaz_set_v13');
+                const salvo = localStorage.getItem('imaginaz_set_v13_1');
                 return salvo ? JSON.parse(salvo) : { 
                     nomeMaq: 'Bambulab A1', consumo: 150, kwh: 1.25, precoMaq: 4300, vida: 5000,
                     precoPLA: 110, precoABS: 95, precoPETG: 120 
@@ -52,8 +52,8 @@
                 material: 'PLA', outros: 0, embalagem: 0, risco: 5, markup: 100 
             });
 
-            useEffect(() => { localStorage.setItem('imaginaz_set_v13', JSON.stringify(settings)); }, [settings]);
-            useEffect(() => { localStorage.setItem('imaginaz_hist_v13', JSON.stringify(historico)); }, [historico]);
+            useEffect(() => { localStorage.setItem('imaginaz_set_v13_1', JSON.stringify(settings)); }, [settings]);
+            useEffect(() => { localStorage.setItem('imaginaz_hist_v13_1', JSON.stringify(historico)); }, [historico]);
 
             const calc = useMemo(() => {
                 const precoKgAtual = settings[`preco${projeto.material}`] || 110;
@@ -74,7 +74,6 @@
                     ...projeto, 
                     data: new Date().toLocaleString(), 
                     id: Date.now(),
-                    // Guardamos também qual era a máquina no momento do save
                     maqUsada: settings.nomeMaq 
                 };
                 setHistorico([novoItem, ...historico]);
@@ -82,7 +81,6 @@
             };
 
             const carregarProjeto = (item) => {
-                // Ao clicar, os campos da calculadora recebem os dados do histórico
                 setProjeto({
                     nome: item.nome,
                     qtd: item.qtd,
@@ -94,11 +92,16 @@
                     risco: item.risco,
                     markup: item.markup
                 });
-                setView('calc'); // Volta para a tela de cálculo automaticamente
+                // Importante: Manter a máquina que estava no orçamento salvo
+                if (item.maqUsada && MINHAS_MAQUINAS[item.maqUsada]) {
+                    const m = MINHAS_MAQUINAS[item.maqUsada];
+                    setSettings({...settings, nomeMaq: item.maqUsada, consumo: m.w, precoMaq: m.v, vida: m.h});
+                }
+                setView('calc');
             };
 
             const excluirHistorico = (e, id) => {
-                e.stopPropagation(); // Impede que o clique no botão ative o "carregar"
+                e.stopPropagation();
                 setHistorico(historico.filter(h => h.id !== id));
             };
 
@@ -160,6 +163,7 @@
                                             <tbody>
                                                 <tr className="border-b border-slate-50"><td className="py-3">Filamento ({projeto.material})</td><td className="text-right">R$ {calc.f.toFixed(2)}</td></tr>
                                                 <tr className="border-b border-slate-50"><td className="py-3">Energia Elétrica</td><td className="text-right">R$ {calc.e.toFixed(2)}</td></tr>
+                                                {/* CORREÇÃO AQUI: Agora exibe settings.nomeMaq dinamicamente */}
                                                 <tr className="border-b border-slate-50"><td className="py-3">Desgaste ({settings.nomeMaq})</td><td className="text-right">R$ {calc.d.toFixed(2)}</td></tr>
                                                 <tr className="border-b border-slate-50"><td className="py-3">Margem de Risco</td><td className="text-right text-red-400">R$ {calc.riscoVal.toFixed(2)}</td></tr>
                                                 <tr className="font-black text-slate-900 text-lg"><td className="pt-6 uppercase">Custo de Produção Total</td><td className="pt-6 text-right">R$ {calc.custoTotal.toFixed(2)}</td></tr>
@@ -220,21 +224,13 @@
                                     key={h.id} 
                                     onClick={() => carregarProjeto(h)}
                                     className="card p-6 flex justify-between items-center hover:border-indigo-400 transition-all cursor-pointer group hover:bg-indigo-50/10"
-                                    title="Clique para abrir este orçamento"
                                 >
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{h.data} • {h.material} • {h.maqUsada}</p>
-                                        <h4 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                                            {h.nome} 
-                                            <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Clique para abrir</span>
-                                        </h4>
+                                        <h4 className="text-lg font-black text-slate-800">{h.nome}</h4>
                                         <p className="text-sm font-bold text-indigo-600">{h.qtd} un • Markup {h.markup}%</p>
                                     </div>
                                     <div className="flex items-center gap-6">
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase">Total</p>
-                                            <p className="text-xl font-black text-slate-800">R$ {(((( (h.peso/1000)*settings[`preco${h.material}`] + (settings.consumo/1000)*h.tempo*settings.kwh + (settings.precoMaq/settings.vida)*h.tempo + (Number(h.outros)+Number(h.embalagem)) ) * (1 + h.risco/100)) * (1 + h.markup/100))).toFixed(2)}</p>
-                                        </div>
                                         <button 
                                             onClick={(e) => excluirHistorico(e, h.id)} 
                                             className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all"
